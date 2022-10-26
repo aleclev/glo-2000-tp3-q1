@@ -74,15 +74,19 @@ def _compute_keys(modulus: int, base: int) -> 'tuple[int, int]':
     - la clé privée,
     - la clé publique.
     """
-    return 0, 0
+    cle_prive = random.randint(0, modulus)
+    cle_publique = glocrypto.modular_exponentiation(base, cle_prive, modulus)
 
+    return cle_prive, cle_publique
 
 def _exchange_pubkeys(own_pubkey: int, peer: socket.socket) -> int:
     """
     Envoie sa propre clé publique, récupère la
     clé publique de l'autre et la retourne.
     """
-    return 0
+    other_pub_key = int(glosocket.recv_msg(peer))
+    glosocket.send_msg(peer, own_pubkey)
+    return other_pub_key
 
 
 def _compute_shared_key(private_key: int,
@@ -109,19 +113,8 @@ def _server(port: int) -> NoReturn:
 
     while True:
         (client_soc, client_addr) = socket_serveur.accept()
-        # On affiche le nombre de connexions au serveur 
-        print(f"Connexion n°{client_num}") 
-        client_num += 1 
-        # Le serveur prépare et envoie un message encodé en UTF-8 
-        GREETING = "Bienvenue sur le serveur, quel est votre nom ?\n" 
-        client_soc.send(GREETING.encode(encoding='utf-8')) 
-        # Le serveur attends une réponse d'au plus 32 octets de la 
-        # # part du client, la décode et la stocke dans une variable 
-        client_reply = client_soc.recv(32).decode(encoding='utf-8') 
-        print("Réponse: " + client_reply) # On répond au client 
-        server_reply = "Enchanté, " + client_reply 
-        client_soc.send(server_reply.encode(encoding='utf-8')) 
-        # De la même manière qu'un fichier, on ferme le # socket client une fois qu'on en a fini 
+        print(glosocket.recv_msg(client_soc))
+        glosocket.send_msg(client_soc, "Hello user!")
         client_soc.close()
 
 
@@ -131,7 +124,12 @@ def _client(destination: str, port: int) -> None:
 
     Crée et connecte son socket, puis procède aux échanges.
     """
+    socket_serveur = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    socket_serveur.connect((destination, port))
 
+    glosocket.send_msg(socket_serveur, "Hello server!")
+
+    print(glosocket.recv_msg(socket_serveur))
 
 # NE PAS ÉDITER PASSÉ CE POINT
 
