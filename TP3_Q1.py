@@ -1,14 +1,16 @@
 """\
 GLO-2000 Travail pratique 3
 Noms et numéros étudiants:
--
--
+- Alec Lévesque 111 269 901
+- 
 -
 """
 
 import argparse
+import re
 import socket
 import sys
+from tkinter import E
 from typing import NoReturn
 import argparse
 import random
@@ -49,9 +51,18 @@ def _generate_modulus_base(destination: socket.socket) -> 'tuple[int, int]':
     - la base.
     """
 
-    modulo = glocrypto.find_prime()
-    base = random.randint(0, modulo)
-    return modulo, base
+    modulus = glocrypto.find_prime()
+    base = random.randint(0, modulus)
+
+    print(f"Modulus et base générée: {modulus}, {base}")
+
+    print("Envoie du modulus au client")
+    glosocket.send_msg(destination, str(modulus))
+
+    print("Envoie de la base au client")
+    glosocket.send_msg(destination, str(base))
+
+    return modulus, base
 
 
 def _receive_modulus_base(source: socket.socket) -> 'tuple[int, int]':
@@ -62,8 +73,14 @@ def _receive_modulus_base(source: socket.socket) -> 'tuple[int, int]':
     - le modulo,
     - la base.
     """
-    msg = glosocket.recv_msg(socket).split(" ")
-    return msg[0], msg[1]
+    print("Réception du modulus et de la base")
+    modulus = int(glosocket.recv_msg(source))
+    base = int(glosocket.recv_msg(source))
+
+    print(f"Modulus reçu: {modulus}")
+    print(f"Base reçu: {base}")
+
+    return modulus, base
 
 
 def _compute_keys(modulus: int, base: int) -> 'tuple[int, int]':
@@ -84,8 +101,8 @@ def _exchange_pubkeys(own_pubkey: int, peer: socket.socket) -> int:
     Envoie sa propre clé publique, récupère la
     clé publique de l'autre et la retourne.
     """
+    glosocket.send_msg(peer, str(own_pubkey))
     other_pub_key = int(glosocket.recv_msg(peer))
-    glosocket.send_msg(peer, own_pubkey)
     return other_pub_key
 
 
@@ -93,7 +110,7 @@ def _compute_shared_key(private_key: int,
                         public_key: int,
                         modulus: int) -> int:
     """Calcule et retourne la clé partagée."""
-    return 0
+    return glocrypto.modular_exponentiation(public_key, private_key, modulus)
 
 
 def _server(port: int) -> NoReturn:
@@ -108,14 +125,25 @@ def _server(port: int) -> NoReturn:
     socket_serveur.bind(("127.0.0.1", port))
     socket_serveur.listen(5)
     print(f"Ecoute sur le port : {port}")
-    
-    client_num = 0
 
     while True:
         (client_soc, client_addr) = socket_serveur.accept()
-        print(glosocket.recv_msg(client_soc))
-        glosocket.send_msg(client_soc, "Hello user!")
-        client_soc.close()
+
+        print(f"Connexion détectée depuis: {client_addr}")
+
+        modulus, base = _generate_modulus_base(client_soc)
+
+        cle_prive, cle_publique = _compute_keys(modulus, base)
+
+        print(f"Clé privée et publique calculée: {cle_prive}, {cle_publique}")
+
+        cle_publique_client = _exchange_pubkeys(cle_publique, client_soc)
+
+        print(f"Clé publique du client: {cle_publique_client}")
+
+        cle_partagee = _compute_shared_key(cle_prive, cle_publique_client, modulus)
+        print(f"La clé partagée est: {cle_partagee}")
+        break
 
 
 def _client(destination: str, port: int) -> None:
@@ -127,20 +155,34 @@ def _client(destination: str, port: int) -> None:
     socket_serveur = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     socket_serveur.connect((destination, port))
 
-    glosocket.send_msg(socket_serveur, "Hello server!")
+    print("Le client se connecte au serveur et demande Le modulo")
 
-    print(glosocket.recv_msg(socket_serveur))
+    modulus, base = _receive_modulus_base(socket_serveur)
+
+    cle_prive, cle_publique = _compute_keys(modulus, base)
+    print(f"Clé privée/publique générées: {cle_prive}, {cle_publique}")
+
+    cle_publique_serveur = _exchange_pubkeys(cle_publique, socket_serveur)
+    print(f"Clé publique du serveur : {cle_publique_serveur}")
+
+    cle_partagee = _compute_shared_key(cle_prive, cle_publique_serveur, modulus)
+
+    print(f"La clé partagée est : {cle_partagee}")
 
 # NE PAS ÉDITER PASSÉ CE POINT
 
 
 def _main() -> int:
-    destination, port = _parse_args(sys.argv[1:])
-    if destination:
-        _client(destination, port)
-    else:
-        _server(port)
-    return 0
+    try:
+        destination, port = _parse_args(sys.argv[1:])
+        if destination:
+            _client(destination, port)
+        else:
+            _server(port)
+        return 0
+    except Exception as e:
+        print(e)
+        return -1
 
 
 if __name__ == '__main__':
