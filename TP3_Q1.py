@@ -10,12 +10,14 @@ import argparse
 import socket
 import sys
 from typing import NoReturn
+import argparse
+
+from click import Argument
 
 import glosocket
 import glocrypto
 
-
-def _parse_args(argv: list[str]) -> tuple[str, int]:
+def _parse_args(argv: 'list[str]') -> 'tuple[str, int]':
     """
     Utilise `argparse` pour récupérer les arguments contenus dans argv.
 
@@ -23,10 +25,18 @@ def _parse_args(argv: list[str]) -> tuple[str, int]:
     - l'adresse IP du serveur (vide en mode serveur).
     - le port.
     """
-    return "", 0
+    parser = argparse.ArgumentParser("desc")
+    parser.add_argument("-p", dest='port', required=True)
+    group = parser.add_mutually_exclusive_group(required=True)
+    group.add_argument("-s", action="store_true")
+    group.add_argument("-d", dest="destination")
+    
+    args = parser.parse_args(argv)
+
+    return args.destination, args.port
 
 
-def _generate_modulus_base(destination: socket.socket) -> tuple[int, int]:
+def _generate_modulus_base(destination: socket.socket) -> 'tuple[int, int]':
     """
     Cette fonction génère le modulo et la base à l'aide du module `glocrypto`.
 
@@ -40,7 +50,7 @@ def _generate_modulus_base(destination: socket.socket) -> tuple[int, int]:
     return 0, 0
 
 
-def _receive_modulus_base(source: socket.socket) -> tuple[int, int]:
+def _receive_modulus_base(source: socket.socket) -> 'tuple[int, int]':
     """
     Cette fonction reçoit le modulo et la base depuis le socket source.
 
@@ -51,7 +61,7 @@ def _receive_modulus_base(source: socket.socket) -> tuple[int, int]:
     return 0, 0
 
 
-def _compute_keys(modulus: int, base: int) -> tuple[int, int]:
+def _compute_keys(modulus: int, base: int) -> 'tuple[int, int]':
     """
     Génère une clé privée et en déduit une clé publique.
 
@@ -83,6 +93,15 @@ def _server(port: int) -> NoReturn:
 
     Prépare son socket, puis gère les clients à l'infini.
     """
+
+    socket_serveur = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    socket_serveur.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    socket_serveur.bind(("127.0.0.1", port))
+    socket_serveur.listen(5)
+    print(f"Ecoute sur le port : {port}")
+
+    while True:
+        pass
 
 
 def _client(destination: str, port: int) -> None:
