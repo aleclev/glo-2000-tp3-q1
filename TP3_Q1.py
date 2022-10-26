@@ -7,10 +7,8 @@ Noms et numéros étudiants:
 """
 
 import argparse
-import re
 import socket
 import sys
-from tkinter import E
 from typing import NoReturn
 import argparse
 import random
@@ -134,22 +132,30 @@ def _server(port: int) -> NoReturn:
 
     print("Démarrage du serveur")
 
-    serveur = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    serveur.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    serveur.bind(("127.0.0.1", port))
-    serveur.listen(5)
+    try:
+        serveur = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        serveur.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        serveur.bind(("127.0.0.1", port))
+        serveur.listen(5)
+    except Exception as e:
+        print(e)
+        sys.exit(-1)
     
     print(f"Serveur près à recevoir sur le port {port}")
 
     while True:
         (client_soc, client_addr) = serveur.accept()
-        print(f"Connexion détectée depuis: {client_addr}")
 
-        modulus, base = _generate_modulus_base(client_soc)
-        cle_prive, cle_publique = _compute_keys(modulus, base)
-        cle_publique_client = _exchange_pubkeys(cle_publique, client_soc)
-        cle_partagee = _compute_shared_key(cle_prive, cle_publique_client, modulus)
-
+        try:
+            print(f"Connexion détectée depuis: {client_addr}")
+            modulus, base = _generate_modulus_base(client_soc)
+            cle_prive, cle_publique = _compute_keys(modulus, base)
+            cle_publique_client = _exchange_pubkeys(cle_publique, client_soc)
+            cle_partagee = _compute_shared_key(cle_prive, cle_publique_client, modulus)
+        except Exception as e:
+            print(e)
+            print("Ferneture de la connexion et attente d'une nouvelle connexion.")
+            client_soc.close()
 
 def _client(destination: str, port: int) -> None:
     """
