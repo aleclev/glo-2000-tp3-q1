@@ -2,8 +2,8 @@
 GLO-2000 Travail pratique 3
 Noms et numéros étudiants:
 - Alec Lévesque 111 269 901
-- 
--
+- Joey Fournier 111 267 602
+- Zyed El Hidri 111 159 762
 """
 
 import argparse
@@ -14,7 +14,6 @@ from tkinter import E
 from typing import NoReturn
 import argparse
 import random
-
 from click import Argument
 
 import glosocket
@@ -50,11 +49,13 @@ def _generate_modulus_base(destination: socket.socket) -> 'tuple[int, int]':
     - le modulo,
     - la base.
     """
+    print("Génération du modulus et de la base")
 
     modulus = glocrypto.find_prime()
     base = random.randint(0, modulus)
 
-    print(f"Modulus et base générée: {modulus}, {base}")
+    print(f"Modulus généré: {modulus}")
+    print(f"Base générée: {base}")
 
     print("Envoie du modulus au client")
     glosocket.send_msg(destination, str(modulus))
@@ -91,8 +92,12 @@ def _compute_keys(modulus: int, base: int) -> 'tuple[int, int]':
     - la clé privée,
     - la clé publique.
     """
+    print("Calcul de la clé privé et publique")
     cle_prive = random.randint(0, modulus)
     cle_publique = glocrypto.modular_exponentiation(base, cle_prive, modulus)
+
+    print(f"Clé privé: {cle_prive}")
+    print(f"Clé publique: {cle_publique}")
 
     return cle_prive, cle_publique
 
@@ -101,8 +106,10 @@ def _exchange_pubkeys(own_pubkey: int, peer: socket.socket) -> int:
     Envoie sa propre clé publique, récupère la
     clé publique de l'autre et la retourne.
     """
+    print("Envoi de la clé publique")
     glosocket.send_msg(peer, str(own_pubkey))
     other_pub_key = int(glosocket.recv_msg(peer))
+    print(f"Réception de la clé publique: {other_pub_key}")
     return other_pub_key
 
 
@@ -110,7 +117,12 @@ def _compute_shared_key(private_key: int,
                         public_key: int,
                         modulus: int) -> int:
     """Calcule et retourne la clé partagée."""
-    return glocrypto.modular_exponentiation(public_key, private_key, modulus)
+    print("Calcul de la clé partagée")
+    
+    cle_partage = glocrypto.modular_exponentiation(public_key, private_key, modulus)
+    print(f"Clé partagée calculée: {cle_partage}")
+    
+    return cle_partage
 
 
 def _server(port: int) -> NoReturn:
@@ -120,30 +132,23 @@ def _server(port: int) -> NoReturn:
     Prépare son socket, puis gère les clients à l'infini.
     """
 
-    socket_serveur = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    socket_serveur.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    socket_serveur.bind(("127.0.0.1", port))
-    socket_serveur.listen(5)
-    print(f"Ecoute sur le port : {port}")
+    print("Démarrage du serveur")
+
+    serveur = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    serveur.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    serveur.bind(("127.0.0.1", port))
+    serveur.listen(5)
+    
+    print(f"Serveur près à recevoir sur le port {port}")
 
     while True:
-        (client_soc, client_addr) = socket_serveur.accept()
-
+        (client_soc, client_addr) = serveur.accept()
         print(f"Connexion détectée depuis: {client_addr}")
 
         modulus, base = _generate_modulus_base(client_soc)
-
         cle_prive, cle_publique = _compute_keys(modulus, base)
-
-        print(f"Clé privée et publique calculée: {cle_prive}, {cle_publique}")
-
         cle_publique_client = _exchange_pubkeys(cle_publique, client_soc)
-
-        print(f"Clé publique du client: {cle_publique_client}")
-
         cle_partagee = _compute_shared_key(cle_prive, cle_publique_client, modulus)
-        print(f"La clé partagée est: {cle_partagee}")
-        break
 
 
 def _client(destination: str, port: int) -> None:
@@ -155,35 +160,21 @@ def _client(destination: str, port: int) -> None:
     socket_serveur = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     socket_serveur.connect((destination, port))
 
-    print("Le client se connecte au serveur et demande Le modulo")
-
     modulus, base = _receive_modulus_base(socket_serveur)
-
     cle_prive, cle_publique = _compute_keys(modulus, base)
-    print(f"Clé privée/publique générées: {cle_prive}, {cle_publique}")
-
     cle_publique_serveur = _exchange_pubkeys(cle_publique, socket_serveur)
-    print(f"Clé publique du serveur : {cle_publique_serveur}")
-
     cle_partagee = _compute_shared_key(cle_prive, cle_publique_serveur, modulus)
-
-    print(f"La clé partagée est : {cle_partagee}")
 
 # NE PAS ÉDITER PASSÉ CE POINT
 
 
 def _main() -> int:
-    try:
-        destination, port = _parse_args(sys.argv[1:])
-        if destination:
-            _client(destination, port)
-        else:
-            _server(port)
-        return 0
-    except Exception as e:
-        print(e)
-        return -1
-
+    destination, port = _parse_args(sys.argv[1:])
+    if destination:
+        _client(destination, port)
+    else:
+        _server(port)
+    return 0
 
 if __name__ == '__main__':
     sys.exit(_main())
